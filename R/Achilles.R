@@ -41,6 +41,7 @@
 #' @param scratchDatabaseSchema            Fully qualified name of the database schema that will store all of the intermediate scratch tables, so for example, on SQL Server, 'cdm_scratch.dbo'. 
 #'                                         Must be accessible to/from the cdmDatabaseSchema and the resultsDatabaseSchema. Default is resultsDatabaseSchema. 
 #'                                         Making this "#" will run Achilles in single-threaded mode and use temporary tables instead of permanent tables.
+#' @param oracleTempSchema                 For Oracle only: the name of the database schema where you want all temporary tables to be managed. Requires create/insert permissions to this database. 
 #' @param vocabDatabaseSchema		           String name of database schema that contains OMOP Vocabulary. Default is cdmDatabaseSchema. On SQL Server, this should specifiy both the database and the schema, so for example 'results.dbo'.
 #' @param sourceName		                   String name of the data source name. If blank, CDM_SOURCE table will be queried to try to obtain this.
 #' @param analysisIds		                   (OPTIONAL) A vector containing the set of Achilles analysisIds for which results will be generated. 
@@ -80,6 +81,7 @@ achilles <- function (connectionDetails,
                       cdmDatabaseSchema,
                       resultsDatabaseSchema = cdmDatabaseSchema, 
                       scratchDatabaseSchema = resultsDatabaseSchema,
+                      oracleTempSchema = resultsDatabaseSchema,
                       vocabDatabaseSchema = cdmDatabaseSchema,
                       sourceName = "", 
                       analysisIds, 
@@ -186,7 +188,7 @@ achilles <- function (connectionDetails,
   
   sql <- SqlRender::render("select top 1 cohort_definition_id from @resultsDatabaseSchema.cohort;", 
                               resultsDatabaseSchema = resultsDatabaseSchema)
-  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
   
   cohortTableExists <- tryCatch({
     dummy <- DatabaseConnector::querySql(connection = connection, sql = sql)
@@ -279,6 +281,7 @@ achilles <- function (connectionDetails,
                                              dbms = connectionDetails$dbms,
                                              warnOnMissingParameters = FALSE,
                                              resultsDatabaseSchema = resultsDatabaseSchema,
+                                             oracleTempSchema = oracleTempSchema,
                                              analysesSqls = paste(analysesSqls, collapse = " \nunion all\n "))
     
     achillesSql <- c(achillesSql, sql)
@@ -342,12 +345,12 @@ achilles <- function (connectionDetails,
                                                 warnOnMissingParameters = FALSE,
                                                 cdmDatabaseSchema = cdmDatabaseSchema,
                                                 scratchDatabaseSchema = scratchDatabaseSchema,
-                                                oracleTempSchema = scratchDatabaseSchema,
                                                 schemaDelim = schemaDelim,
                                                 tempAchillesPrefix = tempAchillesPrefix,
                                                 domainId = domainId,
                                                 domainTable = ifelse(domainId == "Drug", "drug_exposure", "procedure_occurrence"), 
-                                                costColumns = paste(costColumns, collapse = ","))
+                                                costColumns = paste(costColumns, collapse = ","),
+                                                oracleTempSchema = oracleTempSchema)
       )
     })
     
@@ -400,12 +403,12 @@ achilles <- function (connectionDetails,
                                                            schemaDelim = schemaDelim,
                                                            cdmDatabaseSchema = cdmDatabaseSchema,
                                                            scratchDatabaseSchema = scratchDatabaseSchema,
-                                                           oracleTempSchema = scratchDatabaseSchema,
                                                            costColumn = drugCostMappings[drugCostMappings$OLD == analysisDetail["DISTRIBUTED_FIELD"][[1]], ]$CURRENT,
                                                            domainId = "Drug",
                                                            domainTable = "drug_exposure", 
                                                            analysisId = analysisDetail["ANALYSIS_ID"][[1]],
-                                                           tempAchillesPrefix = tempAchillesPrefix)
+                                                           tempAchillesPrefix = tempAchillesPrefix,
+                                                           oracleTempSchema = oracleTempSchema)
               )
               })
     
@@ -421,12 +424,12 @@ achilles <- function (connectionDetails,
                                                            schemaDelim = schemaDelim,
                                                            cdmDatabaseSchema = cdmDatabaseSchema,
                                                            scratchDatabaseSchema = scratchDatabaseSchema,
-                                                           oracleTempSchema = scratchDatabaseSchema,
                                                            costColumn = procedureCostMappings[procedureCostMappings$OLD == analysisDetail["DISTRIBUTED_FIELD"][[1]], ]$CURRENT,
                                                            domainId = "Procedure",
                                                            domainTable = "procedure_occurrence", 
                                                            analysisId = analysisDetail["ANALYSIS_ID"][[1]],
-                                                           tempAchillesPrefix = tempAchillesPrefix)
+                                                           tempAchillesPrefix = tempAchillesPrefix,
+                                                           oracleTempSchema = oracleTempSchema)
               )
               })
     
@@ -753,7 +756,7 @@ createConceptHierarchy <- function(connectionDetails,
                                              dbms = connectionDetails$dbms,
                                              warnOnMissingParameters = FALSE,
                                              scratchDatabaseSchema = scratchDatabaseSchema,
-                                             oracleTempSchema = scratchDatabaseSchema,
+                                             oracleTempSchema = oracleTempSchema,
                                              vocabDatabaseSchema = vocabDatabaseSchema,
                                              schemaDelim = schemaDelim,
                                              tempAchillesPrefix = tempAchillesPrefix)
@@ -766,7 +769,7 @@ createConceptHierarchy <- function(connectionDetails,
                                                 warnOnMissingParameters = FALSE,
                                                 resultsDatabaseSchema = resultsDatabaseSchema,
                                                 scratchDatabaseSchema = scratchDatabaseSchema,
-                                                oracleTempSchema = scratchDatabaseSchema,
+                                                oracleTempSchema = oracleTempSchema,
                                                 schemaDelim = schemaDelim,
                                                 tempAchillesPrefix = tempAchillesPrefix)
   
@@ -875,7 +878,7 @@ createIndices <- function(connectionDetails,
       sql <- SqlRender::render(sql = "drop index @resultsDatabaseSchema.@indexName;",
                                   resultsDatabaseSchema = resultsDatabaseSchema,
                                   indexName = indices[i,]$INDEX_NAME)
-      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
       dropIndicesSql <- c(dropIndicesSql, sql)
       
       sql <- SqlRender::render(sql = "create index @indexName on @resultsDatabaseSchema.@tableName (@fields);",
@@ -883,7 +886,7 @@ createIndices <- function(connectionDetails,
                                   tableName = indices[i,]$TABLE_NAME,
                                   indexName = indices[i,]$INDEX_NAME,
                                   fields = paste(strsplit(x = indices[i,]$FIELDS, split = "~")[[1]], collapse = ","))
-      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
       indicesSql <- c(indicesSql, sql)
     }
   }
@@ -962,7 +965,8 @@ validateSchema <- function(connectionDetails,
                                            cdmDatabaseSchema = cdmDatabaseSchema,
                                            resultsDatabaseSchema = resultsDatabaseSchema,
                                            runCostAnalysis = runCostAnalysis,
-                                           cdmVersion = cdmVersion)
+                                           cdmVersion = cdmVersion,
+                                           oracleTempSchema = oracleTempSchema)
   if (sqlOnly) {
     SqlRender::writeSql(sql = sql, targetFile = file.path(outputFolder, "ValidateSchema.sql")) 
   } else {
@@ -1069,7 +1073,7 @@ dropAllScratchTables <- function(connectionDetails,
                                   scratchDatabaseSchema = scratchDatabaseSchema,
                                   schemaDelim = schemaDelim,
                                   scratchTable = scratchTable)
-      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
     })
     
     dropRawCostSqls <- lapply(c("Drug", "Procedure"), function(domainId) {
@@ -1078,7 +1082,7 @@ dropAllScratchTables <- function(connectionDetails,
                                schemaDelim = schemaDelim,
                                tempAchillesPrefix = tempAchillesPrefix,
                                domainId = domainId)
-      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
     })
     
     dropSqls <- c(dropSqls, dropRawCostSqls)
@@ -1119,7 +1123,7 @@ dropAllScratchTables <- function(connectionDetails,
                            scratchDatabaseSchema = scratchDatabaseSchema,
                            schemaDelim = schemaDelim,
                            scratchTable = scratchTable)
-      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
     })
     
     cluster <- ParallelLogger::makeCluster(numberOfThreads = numThreads, singleThreadToMain = TRUE)
@@ -1146,7 +1150,7 @@ dropAllScratchTables <- function(connectionDetails,
                            cdmDatabaseSchema) {
   sql <- SqlRender::render(sql = "select cdm_version from @cdmDatabaseSchema.cdm_source",
                               cdmDatabaseSchema = cdmDatabaseSchema)
-  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
   connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
   cdmVersion <- tryCatch({
     c <- tolower((DatabaseConnector::querySql(connection = connection, sql = sql))[1,])
@@ -1187,7 +1191,7 @@ dropAllScratchTables <- function(connectionDetails,
                                          resultsDatabaseSchema = resultsDatabaseSchema,
                                          schemaDelim = schemaDelim,
                                          tempAchillesPrefix = tempAchillesPrefix,
-                                         oracleTempSchema = scratchDatabaseSchema,
+                                         oracleTempSchema = oracleTempSchema,
                                          source_name = sourceName,
                                          achilles_version = packageVersion(pkg = "Achilles"),
                                          cdmVersion = cdmVersion,
@@ -1249,7 +1253,7 @@ dropAllScratchTables <- function(connectionDetails,
       analysisSql <- paste(c(analysisSql, benchmarkSql), collapse = " union all ")
       
     } 
-    SqlRender::translate(sql = analysisSql, targetDialect = connectionDetails$dbms)
+    SqlRender::translate(sql = analysisSql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
   })
   
   if (!sqlOnly & includeRawCost) {
@@ -1272,7 +1276,7 @@ dropAllScratchTables <- function(connectionDetails,
       SqlRender::render(sql = "select @benchmarkSelect", benchmarkSelect = paste(benchmarkSelects, collapse = ", "))
     })
     benchmarkSql <- paste(benchmarkSqls, collapse = " union all ")
-    benchmarkSql <- SqlRender::translate(sql = benchmarkSql, targetDialect = connectionDetails$dbms)
+    benchmarkSql <- SqlRender::translate(sql = benchmarkSql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
     detailSqls <- c(detailSqls, benchmarkSql)
   }
   
@@ -1282,6 +1286,7 @@ dropAllScratchTables <- function(connectionDetails,
                                     warnOnMissingParameters = FALSE,
                                     createTable = createTable,
                                     resultsDatabaseSchema = resultsDatabaseSchema,
+                                    oracleTempSchema = oracleTempSchema,
                                     detailType = resultsTable$detailType,
                                     detailSqls = paste(detailSqls, collapse = " \nunion all\n "),
                                     fieldNames = paste(resultsTable$schema$FIELD_NAME, collapse = ", "),
@@ -1292,7 +1297,7 @@ dropAllScratchTables <- function(connectionDetails,
                            cdmDatabaseSchema) {
   sql <- SqlRender::render(sql = "select cdm_source_name from @cdmDatabaseSchema.cdm_source",
                               cdmDatabaseSchema = cdmDatabaseSchema)
-  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
   connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
   sourceName <- tryCatch({
     s <- DatabaseConnector::querySql(connection = connection, sql = sql)
@@ -1317,7 +1322,7 @@ dropAllScratchTables <- function(connectionDetails,
     sql <- SqlRender::render(sql = "delete from @resultsDatabaseSchema.achilles_results where analysis_id in (@analysisIds);",
                                 resultsDatabaseSchema = resultsDatabaseSchema,
                                 analysisIds = paste(resultIds, collapse = ","))
-    sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+    sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
     connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
     on.exit(DatabaseConnector::disconnect(connection = connection))
     DatabaseConnector::executeSql(connection = connection, sql = sql)
@@ -1327,7 +1332,7 @@ dropAllScratchTables <- function(connectionDetails,
     sql <- SqlRender::render(sql = "delete from @resultsDatabaseSchema.achilles_results_dist where analysis_id in (@analysisIds);",
                                 resultsDatabaseSchema = resultsDatabaseSchema,
                                 analysisIds = paste(distIds, collapse = ","))
-    sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
+    sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
     connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
     on.exit(DatabaseConnector::disconnect(connection = connection))
     DatabaseConnector::executeSql(connection = connection, sql = sql)
