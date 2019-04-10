@@ -5,14 +5,17 @@
 \title{Drop all possible scratch tables}
 \usage{
 dropAllScratchTables(connectionDetails, scratchDatabaseSchema,
-  tempAchillesPrefix = "tmpach", tempHeelPrefix = "tmpheel",
-  numThreads = 1, tableTypes = c("achilles", "heel",
-  "concept_hierarchy"), outputFolder, verboseMode = TRUE)
+  oracleTempSchema = NULL, tempAchillesPrefix = "tmpach",
+  tempHeelPrefix = "tmpheel", numThreads = 1,
+  tableTypes = c("achilles", "heel", "concept_hierarchy"), outputFolder,
+  verboseMode = TRUE)
 }
 \arguments{
 \item{connectionDetails}{An R object of type \code{connectionDetails} created using the function \code{createConnectionDetails} in the \code{DatabaseConnector} package.}
 
 \item{scratchDatabaseSchema}{string name of database schema that Achilles scratch tables were written to.}
+
+\item{oracleTempSchema}{For Oracle only: the name of the database schema where you want all temporary tables to be managed. Requires create/insert permissions to this database.}
 
 \item{tempAchillesPrefix}{The prefix to use for the "temporary" (but actually permanent) Achilles analyses tables. Default is "tmpach"}
 

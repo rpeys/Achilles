@@ -5,15 +5,17 @@
 \title{(DEPRECATED) Create the concept hierarchy}
 \usage{
 createConceptHierarchy(connectionDetails, resultsDatabaseSchema,
-  scratchDatabaseSchema, vocabDatabaseSchema, outputFolder,
-  numThreads = 1, tempAchillesPrefix = "tmpach", sqlOnly = FALSE,
-  verboseMode = TRUE)
+  oracleTempSchema = resultsDatabaseSchema, scratchDatabaseSchema,
+  vocabDatabaseSchema, outputFolder, numThreads = 1,
+  tempAchillesPrefix = "tmpach", sqlOnly = FALSE, verboseMode = TRUE)
 }
 \arguments{
 \item{connectionDetails}{An R object of type \code{connectionDetails} created using the function \code{createConnectionDetails} in the \code{DatabaseConnector} package.}
 
 \item{resultsDatabaseSchema}{Fully qualified name of database schema that we can write final results to. Default is cdmDatabaseSchema. 
 On SQL Server, this should specifiy both the database and the schema, so for example, on SQL Server, 'cdm_results.dbo'.}
+
+\item{oracleTempSchema}{For Oracle only: the name of the database schema where you want all temporary tables to be managed. Requires create/insert permissions to this database.}
 
 \item{scratchDatabaseSchema}{Fully qualified name of the database schema that will store all of the intermediate scratch tables, so for example, on SQL Server, 'cdm_scratch.dbo'. 
 Must be accessible to/from the cdmDatabaseSchema and the resultsDatabaseSchema. Default is resultsDatabaseSchema. 

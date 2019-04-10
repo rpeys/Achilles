@@ -188,7 +188,7 @@ achilles <- function (connectionDetails,
   
   sql <- SqlRender::render("select top 1 cohort_definition_id from @resultsDatabaseSchema.cohort;", 
                               resultsDatabaseSchema = resultsDatabaseSchema)
-  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
+  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
   
   cohortTableExists <- tryCatch({
     dummy <- DatabaseConnector::querySql(connection = connection, sql = sql)
@@ -281,7 +281,6 @@ achilles <- function (connectionDetails,
                                              dbms = connectionDetails$dbms,
                                              warnOnMissingParameters = FALSE,
                                              resultsDatabaseSchema = resultsDatabaseSchema,
-                                             oracleTempSchema = oracleTempSchema,
                                              analysesSqls = paste(analysesSqls, collapse = " \nunion all\n "))
     
     achillesSql <- c(achillesSql, sql)
@@ -306,6 +305,7 @@ achilles <- function (connectionDetails,
 
     dropAllScratchTables(connectionDetails = connectionDetails,
                          scratchDatabaseSchema = scratchDatabaseSchema,
+                         oracleTempSchema = oracleTempSchema,
                          tempAchillesPrefix = tempAchillesPrefix,
                          numThreads = numThreads,
                          tableTypes = c("achilles", "concept_hierarchy"),
@@ -488,6 +488,7 @@ achilles <- function (connectionDetails,
                                scratchDatabaseSchema = scratchDatabaseSchema,
                                cdmDatabaseSchema = cdmDatabaseSchema,
                                resultsDatabaseSchema = resultsDatabaseSchema,
+                               oracleTempSchema = oracleTempSchema,
                                cdmVersion = cdmVersion,
                                tempAchillesPrefix = tempAchillesPrefix,
                                resultsTables = resultsTables,
@@ -560,6 +561,7 @@ achilles <- function (connectionDetails,
                                schemaDelim = schemaDelim,
                                scratchDatabaseSchema = scratchDatabaseSchema,
                                resultsDatabaseSchema = resultsDatabaseSchema,
+                               oracleTempSchema = oracleTempSchema,
                                cdmVersion = cdmVersion,
                                tempAchillesPrefix = tempAchillesPrefix,
                                numThreads = numThreads,
@@ -606,7 +608,8 @@ achilles <- function (connectionDetails,
     ParallelLogger::logInfo(sprintf("Dropping scratch Achilles tables from schema %s", scratchDatabaseSchema))
    
     dropAllScratchTables(connectionDetails = connectionDetails, 
-                         scratchDatabaseSchema = scratchDatabaseSchema, 
+                         scratchDatabaseSchema = scratchDatabaseSchema,
+                         oracleTempSchema = oracleTempSchema,
                          tempAchillesPrefix = tempAchillesPrefix, 
                          numThreads = numThreads,
                          tableTypes = c("achilles"),
@@ -644,6 +647,7 @@ achilles <- function (connectionDetails,
                                 cdmDatabaseSchema = cdmDatabaseSchema,
                                 resultsDatabaseSchema = resultsDatabaseSchema,
                                 scratchDatabaseSchema = scratchDatabaseSchema,
+                                oracleTempSchema = oracleTempSchema,
                                 vocabDatabaseSchema = vocabDatabaseSchema,
                                 cdmVersion = cdmVersion,
                                 sqlOnly = sqlOnly,
@@ -688,6 +692,7 @@ achilles <- function (connectionDetails,
 #' @param connectionDetails                An R object of type \code{connectionDetails} created using the function \code{createConnectionDetails} in the \code{DatabaseConnector} package.
 #' @param resultsDatabaseSchema		         Fully qualified name of database schema that we can write final results to. Default is cdmDatabaseSchema. 
 #'                                         On SQL Server, this should specifiy both the database and the schema, so for example, on SQL Server, 'cdm_results.dbo'.
+#' @param oracleTempSchema                 For Oracle only: the name of the database schema where you want all temporary tables to be managed. Requires create/insert permissions to this database. 
 #' @param scratchDatabaseSchema            Fully qualified name of the database schema that will store all of the intermediate scratch tables, so for example, on SQL Server, 'cdm_scratch.dbo'. 
 #'                                         Must be accessible to/from the cdmDatabaseSchema and the resultsDatabaseSchema. Default is resultsDatabaseSchema. 
 #'                                         Making this "#" will run Achilles in single-threaded mode and use temporary tables instead of permanent tables.
@@ -701,6 +706,7 @@ achilles <- function (connectionDetails,
 #' @export
 createConceptHierarchy <- function(connectionDetails, 
                                    resultsDatabaseSchema,
+                                   oracleTempSchema = resultsDatabaseSchema,
                                    scratchDatabaseSchema,
                                    vocabDatabaseSchema,
                                    outputFolder,
@@ -802,6 +808,7 @@ createConceptHierarchy <- function(connectionDetails,
     
     dropAllScratchTables(connectionDetails = connectionDetails, 
                          scratchDatabaseSchema = scratchDatabaseSchema, 
+                         oracleTempSchema = oracleTempSchema,
                          tempAchillesPrefix = tempAchillesPrefix, 
                          numThreads = numThreads,
                          tableTypes = c("concept_hierarchy"),
@@ -878,7 +885,7 @@ createIndices <- function(connectionDetails,
       sql <- SqlRender::render(sql = "drop index @resultsDatabaseSchema.@indexName;",
                                   resultsDatabaseSchema = resultsDatabaseSchema,
                                   indexName = indices[i,]$INDEX_NAME)
-      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
+      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
       dropIndicesSql <- c(dropIndicesSql, sql)
       
       sql <- SqlRender::render(sql = "create index @indexName on @resultsDatabaseSchema.@tableName (@fields);",
@@ -886,7 +893,7 @@ createIndices <- function(connectionDetails,
                                   tableName = indices[i,]$TABLE_NAME,
                                   indexName = indices[i,]$INDEX_NAME,
                                   fields = paste(strsplit(x = indices[i,]$FIELDS, split = "~")[[1]], collapse = ","))
-      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
+      sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
       indicesSql <- c(indicesSql, sql)
     }
   }
@@ -965,8 +972,7 @@ validateSchema <- function(connectionDetails,
                                            cdmDatabaseSchema = cdmDatabaseSchema,
                                            resultsDatabaseSchema = resultsDatabaseSchema,
                                            runCostAnalysis = runCostAnalysis,
-                                           cdmVersion = cdmVersion,
-                                           oracleTempSchema = oracleTempSchema)
+                                           cdmVersion = cdmVersion)
   if (sqlOnly) {
     SqlRender::writeSql(sql = sql, targetFile = file.path(outputFolder, "ValidateSchema.sql")) 
   } else {
@@ -1007,6 +1013,7 @@ getAnalysisDetails <- function() {
 #' 
 #' @param connectionDetails                An R object of type \code{connectionDetails} created using the function \code{createConnectionDetails} in the \code{DatabaseConnector} package.
 #' @param scratchDatabaseSchema            string name of database schema that Achilles scratch tables were written to. 
+#' @param oracleTempSchema                 For Oracle only: the name of the database schema where you want all temporary tables to be managed. Requires create/insert permissions to this database. 
 #' @param tempAchillesPrefix               The prefix to use for the "temporary" (but actually permanent) Achilles analyses tables. Default is "tmpach"
 #' @param tempHeelPrefix                   The prefix to use for the "temporary" (but actually permanent) Heel tables. Default is "tmpheel"
 #' @param numThreads                       The number of threads to use to run this function. Default is 1 thread.
@@ -1017,6 +1024,7 @@ getAnalysisDetails <- function() {
 #' @export
 dropAllScratchTables <- function(connectionDetails, 
                                  scratchDatabaseSchema, 
+                                 oracleTempSchema = NULL,
                                  tempAchillesPrefix = "tmpach", 
                                  tempHeelPrefix = "tmpheel", 
                                  numThreads = 1,
@@ -1150,7 +1158,7 @@ dropAllScratchTables <- function(connectionDetails,
                            cdmDatabaseSchema) {
   sql <- SqlRender::render(sql = "select cdm_version from @cdmDatabaseSchema.cdm_source",
                               cdmDatabaseSchema = cdmDatabaseSchema)
-  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
+  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
   connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
   cdmVersion <- tryCatch({
     c <- tolower((DatabaseConnector::querySql(connection = connection, sql = sql))[1,])
@@ -1175,6 +1183,7 @@ dropAllScratchTables <- function(connectionDetails,
                             scratchDatabaseSchema,
                             cdmDatabaseSchema,
                             resultsDatabaseSchema,
+                            oracleTempSchema,
                             cdmVersion,
                             tempAchillesPrefix, 
                             resultsTables,
@@ -1204,7 +1213,8 @@ dropAllScratchTables <- function(connectionDetails,
                                         connectionDetails,
                                         schemaDelim,
                                         scratchDatabaseSchema,
-                                        resultsDatabaseSchema, 
+                                        resultsDatabaseSchema,
+                                        oracleTempSchema,
                                         cdmVersion,
                                         tempAchillesPrefix,
                                         numThreads,
@@ -1225,6 +1235,7 @@ dropAllScratchTables <- function(connectionDetails,
     analysisSql <- SqlRender::render(sql = "select @castedNames from 
                                      @scratchDatabaseSchema@schemaDelim@tablePrefix_@analysisId", 
                                      scratchDatabaseSchema = scratchDatabaseSchema,
+                                     oracleTempSchema = oracleTempSchema,
                                      schemaDelim = schemaDelim,
                                      castedNames = paste(castedNames, collapse = ", "), 
                                      tablePrefix = resultsTable$tablePrefix, 
@@ -1297,7 +1308,7 @@ dropAllScratchTables <- function(connectionDetails,
                            cdmDatabaseSchema) {
   sql <- SqlRender::render(sql = "select cdm_source_name from @cdmDatabaseSchema.cdm_source",
                               cdmDatabaseSchema = cdmDatabaseSchema)
-  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
+  sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
   connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
   sourceName <- tryCatch({
     s <- DatabaseConnector::querySql(connection = connection, sql = sql)
@@ -1322,7 +1333,7 @@ dropAllScratchTables <- function(connectionDetails,
     sql <- SqlRender::render(sql = "delete from @resultsDatabaseSchema.achilles_results where analysis_id in (@analysisIds);",
                                 resultsDatabaseSchema = resultsDatabaseSchema,
                                 analysisIds = paste(resultIds, collapse = ","))
-    sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
+    sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
     connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
     on.exit(DatabaseConnector::disconnect(connection = connection))
     DatabaseConnector::executeSql(connection = connection, sql = sql)
@@ -1332,7 +1343,7 @@ dropAllScratchTables <- function(connectionDetails,
     sql <- SqlRender::render(sql = "delete from @resultsDatabaseSchema.achilles_results_dist where analysis_id in (@analysisIds);",
                                 resultsDatabaseSchema = resultsDatabaseSchema,
                                 analysisIds = paste(distIds, collapse = ","))
-    sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms, oracleTempSchema = oracleTempSchema)
+    sql <- SqlRender::translate(sql = sql, targetDialect = connectionDetails$dbms)
     connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
     on.exit(DatabaseConnector::disconnect(connection = connection))
     DatabaseConnector::executeSql(connection = connection, sql = sql)
