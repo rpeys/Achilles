@@ -175,15 +175,15 @@ achilles <- function (connectionDetails,
   sql <- SqlRender::renderSql("select top 1 * from @resultsDatabaseSchema.cohort;", 
                               resultsDatabaseSchema = resultsDatabaseSchema)$sql
   sql <- SqlRender::translateSql(sql = sql, targetDialect = connectionDetails$dbms)$sql
-  ''' 
-  cohortTableExists <- tryCatch({
-  	dummy <- DatabaseConnector::querySql(connection = connection, sql = sql)
-  	TRUE
-  }, error = function(e) {
-  	ParallelLogger::logWarn("Cohort table not found, will skip analyses 1700 and 1701")
-  	FALSE
-  })
-  DatabaseConnector::disconnect(connection = connection)'''
+   
+  #cohortTableExists <- tryCatch({
+  #	dummy <- DatabaseConnector::querySql(connection = connection, sql = sql)
+  # 	TRUE
+  #}, error = function(e) {
+  #	ParallelLogger::logWarn("Cohort table not found, will skip analyses 1700 and 1701")
+  #	FALSE
+  #})
+  #DatabaseConnector::disconnect(connection = connection)
 
   cohortTableExists <- TRUE
   tryCatch({
