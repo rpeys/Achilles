@@ -175,7 +175,7 @@ achilles <- function (connectionDetails,
   sql <- SqlRender::renderSql("select top 1 * from @resultsDatabaseSchema.cohort;", 
                               resultsDatabaseSchema = resultsDatabaseSchema)$sql
   sql <- SqlRender::translateSql(sql = sql, targetDialect = connectionDetails$dbms)$sql
-  
+'''  
   cohortTableExists <- tryCatch({
   	dummy <- DatabaseConnector::querySql(connection = connection, sql = sql)
   	TRUE
@@ -184,7 +184,17 @@ achilles <- function (connectionDetails,
   	FALSE
   })
   DatabaseConnector::disconnect(connection = connection)
-  
+  '''
+
+  cohortTableExists <- TRUE
+  tryCatch({
+    dummy <- DatabaseConnector::querySql(connection = connection, sql = sql)
+  }, error = function(e) {
+    cohortTableExists <- FALSE
+  })
+  DatabaseConnector::disconnect(connection = connection)
+
+
   if (!cohortTableExists) {
     analysisDetails <- analysisDetails[!analysisDetails$ANALYSIS_ID %in% c(1700,1701),]
   }
