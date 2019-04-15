@@ -189,10 +189,11 @@ achilles <- function (connectionDetails,
   tryCatch({
     dummy <- DatabaseConnector::querySql(connection = connection, sql = sql)
   }, error = function(e) {
+    ParallelLogger::logWarn("Cohort table not found, will skip analyses 1700 and 1701")
     cohortTableExists <- FALSE
   })
   DatabaseConnector::disconnect(connection = connection)
-
+  ParallelLogger::logWarn("value of cohortTableExists:", cohortTableExists)
 
   if (!cohortTableExists) {
     analysisDetails <- analysisDetails[!analysisDetails$ANALYSIS_ID %in% c(1700,1701),]
